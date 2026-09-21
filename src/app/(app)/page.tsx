@@ -261,7 +261,7 @@ export default async function TodayPage() {
             />
 
             <div className="panel overflow-hidden">
-              <Garden nodes={garden.nodes} areas={areaList} />
+              <Garden nodes={garden.nodes} edges={garden.edges} areas={areaList} />
 
               <div className="grid grid-cols-2 gap-px bg-[hsl(0_0%_100%/0.07)] shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.06)] sm:grid-cols-3">
                 {areaList.map((area) => {

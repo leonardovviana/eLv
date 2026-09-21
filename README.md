@@ -27,15 +27,16 @@ CAPTAR  →  DESTILAR  →  REVISAR  →  CONECTAR
 
 ### O jardim
 
-A tela Hoje mostra o acervo como um campo em três dimensões, não como uma lista. Cada item é uma haste de luz que sobe do chão, escura na base e acesa na ponta:
+A tela Hoje mostra o acervo como um canteiro cultivado em três dimensões, sobre piso polido:
 
-- o **estágio** define altura e marcas no talo: semente é um grão pousado no chão, broto é haste lisa, crescido ganha uma marca, enraizado ganha duas (as mesmas marcas de maturidade do selo de estágio);
-- a **vitalidade** define altura e brilho, então o que você não revisita baixa e apaga, e o campo inteiro murcha à vista;
-- a **área** define o matiz, mas não a saturação: toda cor passa por um filtro que iguala saturação e luminosidade, para o campo ler como um material só em vez de seis cores brigando.
+- cada item é uma **haste com uma copa facetada** no topo, iluminada de verdade: cada face pega a luz num ângulo diferente, então a copa tem volume em vez de ser um disco colorido;
+- o **estágio** define altura, tamanho da copa e marcas no talo. Semente é um grão pousado; enraizado é a haste mais alta, com duas marcas e um satélite em órbita;
+- a **vitalidade** define altura e brilho, então o que você não revisita baixa e apaga à vista;
+- cada **área é um canteiro**: anel gravado no chão, poça de luz por baixo e o nome na borda. A cor da área passa por um filtro que mantém o matiz e iguala saturação e luminosidade, para o campo não virar confete;
+- itens **conectados** são ligados por arcos entre as copas (as 24 ligações mais fortes), então a rede do mapa também existe aqui;
+- o piso **reflete** o campo, e poeira em suspensão e uma névoa ao fundo dão profundidade ao ar.
 
-O brilho das pontas é um halo em plano voltado para a câmera com blending aditivo: bloom sem passe de pós-processamento, que custaria mais que a cena inteira. O chão é o grid de blueprint do app pintado num canvas e recortado por um gradiente radial, então dissolve no escuro em vez de terminar numa aresta.
-
-Arraste para girar, passe o ponteiro para ler, clique para abrir o item. O Three.js entra por importação dinâmica (sem SSR) e só desce nessa tela; sem WebGL, o jardim some e a lista de áreas responde por tudo.
+Arraste para girar, passe o ponteiro para ler, clique para abrir o item. São nove chamadas de desenho para o campo inteiro, com qualquer tamanho de acervo (tudo em `InstancedMesh`), e a cena para quando a aba está escondida ou o canvas sai da tela. O Three.js entra por importação dinâmica e só desce nessa tela; sem WebGL, o jardim some e a lista de áreas responde por tudo.
 
 ### Melhorar o que você escreveu
 
@@ -136,17 +137,26 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | idem |
 | `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| `NEXT_PUBLIC_SITE_URL` | o domínio público do app — em produção, `https://elv-one.vercel.app` |
 
 A chave do Gemini **nunca** chega ao browser: só é lida nos route handlers em `/api/ai/*`.
 
 ### 3. Auth
 
-Em Supabase → Authentication → URL Configuration, adicione às **Redirect URLs**:
+O link do e-mail é montado no browser, e a origem vem de `NEXT_PUBLIC_SITE_URL` (ver [`src/lib/site-url.ts`](src/lib/site-url.ts)) — não da aba aberta. Sem essa variável em produção, um acesso por URL de preview da Vercel geraria um link para um domínio que o Supabase não reconhece.
+
+Em Supabase → Authentication → URL Configuration:
+
+- **Site URL**: `https://elv-one.vercel.app` — é para onde o Supabase manda o usuário quando o `redirect_to` não está na lista abaixo
+- **Redirect URLs**:
 
 ```
-http://localhost:3000/auth/callback
 https://elv-one.vercel.app/auth/callback
+https://elv-one.vercel.app/**
+http://localhost:3000/auth/callback
 ```
+
+Na Vercel, defina `NEXT_PUBLIC_SITE_URL=https://elv-one.vercel.app` em Production (e redeploy — é `NEXT_PUBLIC_`, então entra no bundle em build time).
 
 Sem isso o magic link chega, mas o clique não volta pro app. É o único passo do deploy que não dá para automatizar: configuração de Auth não passa por SQL nem pela CLI.
 

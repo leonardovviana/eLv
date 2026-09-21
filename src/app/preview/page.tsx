@@ -194,7 +194,7 @@ export default function PreviewPage() {
       <section>
         <SectionHeader label="Jardim" count="34 plantas" />
         <div className="panel overflow-hidden">
-          <Garden nodes={MAP.nodes} areas={AREAS} />
+          <Garden nodes={MAP.nodes} edges={MAP.edges} areas={AREAS} />
         </div>
       </section>
 

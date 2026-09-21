@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
-import type { Area, MapNode } from "@/lib/types";
+import type { Area, MapEdge, MapNode } from "@/lib/types";
 
 /**
  * Carregamento do jardim.
@@ -39,7 +39,15 @@ function hasWebGL() {
   return webglSupport;
 }
 
-export function Garden({ nodes, areas }: { nodes: MapNode[]; areas: Area[] }) {
+export function Garden({
+  nodes,
+  edges,
+  areas,
+}: {
+  nodes: MapNode[];
+  edges?: MapEdge[];
+  areas: Area[];
+}) {
   const supported = React.useSyncExternalStore(
     () => () => {},
     hasWebGL,
@@ -63,7 +71,7 @@ export function Garden({ nodes, areas }: { nodes: MapNode[]; areas: Area[] }) {
       </p>
 
       <div className="h-[320px] w-full sm:h-[400px] lg:h-[460px]">
-        <Scene nodes={nodes} areas={areas} />
+        <Scene nodes={nodes} edges={edges} areas={areas} />
       </div>
     </>
   );

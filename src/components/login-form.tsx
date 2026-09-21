@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight, Loader2, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/browser";
+import { getSiteUrl } from "@/lib/site-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +22,9 @@ export function LoginForm({ next }: { next?: string }) {
 
     // Carrega o destino original até o outro lado do magic link. Sem isto, um
     // link vindo do Share Target (/fluxo?url=...) se perderia no login.
-    const callback = new URL("/auth/callback", window.location.origin);
+    // A origem vem de getSiteUrl(), não da aba: em preview da Vercel o link
+    // do e-mail apontaria para um domínio fora das Redirect URLs.
+    const callback = new URL("/auth/callback", getSiteUrl());
     if (next?.startsWith("/")) callback.searchParams.set("next", next);
 
     const supabase = createClient();
