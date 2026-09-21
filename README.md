@@ -163,14 +163,44 @@ where email = 'leo@elv.local';
 **Conta antiga, criada por magic link?** O mesmo SQL Editor converte ela em usuário e senha sem perder nada do acervo — o `user_id` continua o mesmo, então itens, áreas e trilhas vêm junto:
 
 ```sql
-update auth.users
-set email              = 'leo@elv.local',
-    encrypted_password = extensions.crypt('sua-senha', extensions.gen_salt('bf')),
-    email_confirmed_at = coalesce(email_confirmed_at, now()),
-    raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb)
-                         || jsonb_build_object('username', 'leo')
-where email = 'voce@gmail.com';
+do $$
+declare
+  v_old_email text := 'voce@gmail.com';  -- e-mail atual da conta
+  v_username  text := 'leo';             -- usuário novo, minúsculas
+  v_password  text := 'sua-senha';       -- pelo menos 8 caracteres
+  v_new_email text := lower(v_username) || '@elv.local';
+  v_uid       uuid;
+begin
+  select id into v_uid from auth.users where lower(email) = lower(v_old_email);
+  if v_uid is null then
+    raise exception 'Nenhuma conta com o e-mail %', v_old_email;
+  end if;
+
+  update auth.users
+  set email              = v_new_email,
+      encrypted_password = extensions.crypt(v_password, extensions.gen_salt('bf')),
+      email_confirmed_at = coalesce(email_confirmed_at, now()),
+      raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb)
+                           || jsonb_build_object('username', lower(v_username)),
+      -- O GoTrue lê estas colunas como texto e quebra no login se vierem NULL.
+      confirmation_token         = coalesce(confirmation_token, ''),
+      recovery_token             = coalesce(recovery_token, ''),
+      email_change               = coalesce(email_change, ''),
+      email_change_token_new     = coalesce(email_change_token_new, ''),
+      email_change_token_current = coalesce(email_change_token_current, ''),
+      updated_at = now()
+  where id = v_uid;
+
+  -- A identidade do provedor 'email' guarda o endereço de novo. Sem atualizar
+  -- aqui, o auth continua enxergando a conta pelo endereço antigo.
+  update auth.identities
+  set identity_data = identity_data || jsonb_build_object('email', v_new_email),
+      updated_at = now()
+  where user_id = v_uid and provider = 'email';
+end $$;
 ```
+
+`confirmed_at` é coluna gerada: não entra no `update`. Se o Postgres reclamar que `extensions.crypt` não existe, o pgcrypto está em outro schema — troque por `crypt(...)` e `gen_salt(...)` sem prefixo.
 
 Enquanto não converter, ela continua entrando: o campo **Usuário** aceita o e-mail inteiro quando o que você digita tem `@` — o que falta nessa conta é só a senha, que o primeiro `update` acima define.
 
