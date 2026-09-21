@@ -1,4 +1,4 @@
-import { createClient, getUser } from "@/lib/supabase/server";
+import { accountName, createClient, getUser } from "@/lib/supabase/server";
 import { aiUsageToday } from "@/lib/ai-server";
 import { pendingIndexCount } from "@/lib/embed-items";
 import { MODEL_EMBED, MODEL_FAST, MODEL_HEAVY, isGeminiConfigured } from "@/lib/gemini";
@@ -28,7 +28,7 @@ export default async function ConfigPage() {
       />
 
       <ConfigClient
-        email={user?.email ?? ""}
+        account={accountName(user)}
         name={(user?.user_metadata?.name as string) ?? ""}
         pendingIndex={pending}
         usageToday={usage}
