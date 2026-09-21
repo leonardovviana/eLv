@@ -4,6 +4,8 @@ PWA pessoal de memória secundária. Você joga qualquer coisa dentro (um repo d
 
 A diferença para um arquivo morto está no verbo do meio: não basta guardar e buscar. O que você guardou **volta**.
 
+**Em produção:** [elv-one.vercel.app](https://elv-one.vercel.app)
+
 ---
 
 ## O ciclo
@@ -143,10 +145,10 @@ Em Supabase → Authentication → URL Configuration, adicione às **Redirect UR
 
 ```
 http://localhost:3000/auth/callback
-https://SEU-DOMINIO.vercel.app/auth/callback
+https://elv-one.vercel.app/auth/callback
 ```
 
-Sem isso o magic link chega, mas o clique não volta pro app.
+Sem isso o magic link chega, mas o clique não volta pro app. É o único passo do deploy que não dá para automatizar: configuração de Auth não passa por SQL nem pela CLI.
 
 ### 4. Rodar
 
