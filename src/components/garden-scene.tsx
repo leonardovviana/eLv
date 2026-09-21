@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import * as THREE from "three";
+import { createBrain } from "./garden-brain";
 import { STAGES, type Area, type MapEdge, type MapNode, type Stage } from "@/lib/types";
 
 /**
@@ -23,7 +24,10 @@ import { STAGES, type Area, type MapEdge, type MapNode, type Stage } from "@/lib
  *     baixo e o nome flutuando na borda;
  *   · itens conectados são ligados por ARCOS entre as copas, então a rede que
  *     o mapa mostra em duas dimensões também existe aqui;
- *   · poeira em suspensão e uma névoa ao fundo dão profundidade ao ar.
+ *   · poeira em suspensão e uma névoa ao fundo dão profundidade ao ar;
+ *   · no centro do anel flutua o CÉREBRO que cultiva tudo isso (ver
+ *     `garden-brain.ts`), sobre uma poça de luz de onde saem raízes até cada
+ *     canteiro, com pulsos correndo do centro para as áreas.
  *
  * Como um item vira haste:
  *
@@ -36,9 +40,9 @@ import { STAGES, type Area, type MapEdge, type MapNode, type Stage } from "@/lib
  *     que iguala saturação e luminosidade, senão o campo vira confete.
  *
  * Custo: sete `InstancedMesh` (haste, copa, halo, marca, satélite e os dois
- * reflexos), um `LineSegments` para os arcos e um `Points` para a poeira.
- * Nove chamadas de desenho para o campo inteiro, com qualquer tamanho de
- * acervo. A cena para quando a aba está escondida ou o canvas sai da tela.
+ * reflexos), um `LineSegments` para os arcos e um `Points` para a poeira,
+ * mais um punhado fixo para o cérebro e as raízes. O número de chamadas de
+ * desenho não cresce com o acervo. A cena para quando a aba está escondida ou o canvas sai da tela.
  */
 
 type Plant = {
@@ -403,6 +407,142 @@ export function GardenScene({
       trash.push(labelTex, labelMat);
     }
 
+    // ── Cérebro ───────────────────────────────────────────────────────
+    const narrowAtStart = wrap.clientWidth < 560;
+    const signal = new THREE.Color(0x6fe8ff);
+    const brain = createBrain({ reduced, lite: narrowAtStart, signal });
+    scene.add(brain.object, brain.reflection);
+    trash.push(brain);
+
+    // Luz própria: o cérebro acende de leve as copas mais próximas.
+    const brainLight = new THREE.PointLight(0x7fdcff, 9, 11, 2);
+    brainLight.position.set(0, brain.height - 0.4, 0);
+    scene.add(brainLight);
+
+    // Poça de luz no piso e dois anéis gravados: é o chão de onde ele flutua.
+    const poolGeo = new THREE.PlaneGeometry(6.4, 6.4);
+    const poolMat = new THREE.MeshBasicMaterial({
+      map: plotGlowTex,
+      color: signal,
+      transparent: true,
+      opacity: 0.22,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const pool = new THREE.Mesh(poolGeo, poolMat);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.014;
+    scene.add(pool);
+    trash.push(poolGeo, poolMat);
+
+    for (const [radius, opacity] of [
+      [1.25, 0.32],
+      [1.75, 0.14],
+    ] as const) {
+      const g = new THREE.RingGeometry(radius, radius + 0.022, 96);
+      const m = new THREE.MeshBasicMaterial({
+        color: signal,
+        transparent: true,
+        opacity,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const ring = new THREE.Mesh(g, m);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.021;
+      scene.add(ring);
+      trash.push(g, m);
+    }
+
+    // Raízes: do anel central até a borda de cada canteiro, rente ao piso,
+    // com o degradê indo da cor do sinal para a cor da área.
+    const roots: THREE.QuadraticBezierCurve3[] = [];
+    const rootColors: THREE.Color[] = [];
+    {
+      const RSEG = 40;
+      const positions: number[] = [];
+      const colors: number[] = [];
+      const tint = new THREE.Color();
+
+      for (const plot of plots) {
+        const dist = Math.hypot(plot.x, plot.z);
+        if (dist < 0.001) continue;
+        const dx = plot.x / dist;
+        const dz = plot.z / dist;
+        const start = new THREE.Vector3(dx * 1.25, 0.024, dz * 1.25);
+        const end = new THREE.Vector3(plot.x - dx * plot.radius, 0.024, plot.z - dz * plot.radius);
+        // Curva lateral suave: raiz reta parece régua.
+        const bend = new THREE.Vector3()
+          .addVectors(start, end)
+          .multiplyScalar(0.5)
+          .add(new THREE.Vector3(-dz, 0, dx).multiplyScalar(dist * 0.12));
+        const curve = new THREE.QuadraticBezierCurve3(start, bend, end);
+        roots.push(curve);
+        rootColors.push(plot.color);
+
+        const pts = curve.getPoints(RSEG);
+        for (let i = 0; i < pts.length - 1; i++) {
+          positions.push(pts[i].x, pts[i].y, pts[i].z, pts[i + 1].x, pts[i + 1].y, pts[i + 1].z);
+          for (const at of [i / RSEG, (i + 1) / RSEG]) {
+            tint.copy(signal).lerp(plot.color, at).multiplyScalar(1 - at * 0.45);
+            colors.push(tint.r, tint.g, tint.b);
+          }
+        }
+      }
+
+      if (positions.length > 0) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+        g.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+        const m = new THREE.LineBasicMaterial({
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.4,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        scene.add(new THREE.LineSegments(g, m));
+        trash.push(g, m);
+      }
+    }
+
+    // Pulsos: o que o cérebro manda para cada área, correndo pela raiz.
+    const PULSES_PER_ROOT = 2;
+    const pulseCount = reduced ? 0 : roots.length * PULSES_PER_ROOT;
+    const pulseAt = new THREE.Vector3();
+    const pulseTint = new THREE.Color();
+    let pulses: THREE.Points | null = null;
+    let pulsePositions: Float32Array | null = null;
+    let pulseColors: Float32Array | null = null;
+
+    if (pulseCount > 0) {
+      pulsePositions = new Float32Array(pulseCount * 3);
+      pulseColors = new Float32Array(pulseCount * 3);
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(pulsePositions, 3));
+      g.setAttribute("color", new THREE.BufferAttribute(pulseColors, 3));
+      const tex = radialTexture(
+        [
+          [0, "rgba(255,255,255,1)"],
+          [0.3, "rgba(255,255,255,0.35)"],
+          [1, "rgba(255,255,255,0)"],
+        ],
+        64,
+      );
+      const m = new THREE.PointsMaterial({
+        size: 0.42,
+        map: tex,
+        vertexColors: true,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true,
+      });
+      pulses = new THREE.Points(g, m);
+      scene.add(pulses);
+      trash.push(g, m, tex);
+    }
+
     // ── Peças do campo ────────────────────────────────────────────────
     const stemGeo = stemGeometry();
     const stemMat = new THREE.MeshBasicMaterial({
@@ -458,6 +598,12 @@ export function GardenScene({
       toneMapped: false,
     });
     const orbs = new THREE.InstancedMesh(orbitGeo, orbitMat, Math.max(1, orbiters));
+
+    // O buffer precisa de ao menos uma vaga, mas só desenha as que existem.
+    // Sem isto, um jardim sem enraizados desenhava uma esfera de raio 1 com
+    // matriz identidade, meio enterrada na origem.
+    marks.count = markCount;
+    orbs.count = orbiters;
 
     // Reflexo: as mesmas peças espelhadas no piso, apagadas. O truque custa
     // duas chamadas de desenho e é o que apoia o campo no chão.
@@ -705,6 +851,31 @@ export function GardenScene({
         mesh.instanceMatrix.needsUpdate = true;
       }
 
+      brain.update(t);
+
+      if (pulses && pulsePositions && pulseColors) {
+        for (let r = 0; r < roots.length; r++) {
+          for (let k = 0; k < PULSES_PER_ROOT; k++) {
+            const idx = r * PULSES_PER_ROOT + k;
+            const u = (t * 0.16 + k / PULSES_PER_ROOT + r * 0.37) % 1;
+            roots[r].getPoint(u, pulseAt);
+            pulsePositions[idx * 3] = pulseAt.x;
+            pulsePositions[idx * 3 + 1] = pulseAt.y + 0.02;
+            pulsePositions[idx * 3 + 2] = pulseAt.z;
+            // Nasce na cor do sinal, chega na cor da área e apaga na borda.
+            pulseTint
+              .copy(signal)
+              .lerp(rootColors[r], u)
+              .multiplyScalar(Math.sin(u * Math.PI) * 1.1);
+            pulseColors[idx * 3] = pulseTint.r;
+            pulseColors[idx * 3 + 1] = pulseTint.g;
+            pulseColors[idx * 3 + 2] = pulseTint.b;
+          }
+        }
+        pulses.geometry.attributes.position.needsUpdate = true;
+        pulses.geometry.attributes.color.needsUpdate = true;
+      }
+
       if (dust && dustPositions) {
         for (let i = 0; i < DUST; i++) {
           const y = dustPositions[i * 3 + 1] + 0.0035;
@@ -715,7 +886,7 @@ export function GardenScene({
     }
 
     // ── Câmera orbital ────────────────────────────────────────────────
-    const narrow = wrap.clientWidth < 560;
+    const narrow = narrowAtStart;
     let theta = -0.6;
     let phi = narrow ? 1.12 : 1.3;
     let radius = (narrow ? 21 : 14.5) + Math.min(plants.length, 200) * 0.012;
@@ -726,7 +897,8 @@ export function GardenScene({
         Math.cos(phi) * radius,
         Math.sin(phi) * Math.sin(theta) * radius,
       );
-      camera.lookAt(0, 1.15, 0);
+      // Mira entre o piso e o cérebro, para os dois caberem no quadro.
+      camera.lookAt(0, 1.75, 0);
     }
 
     function resize() {
