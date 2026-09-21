@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // `/preview` é a bancada de QA visual: monta as peças da interface com dados
 // de fixture e não toca no banco. Fica pública porque o objetivo dela é
 // justamente inspecionar o desenho sem uma sessão.
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/manifest.json", "/sw.js", "/preview"];
+const PUBLIC_PATHS = ["/login", "/manifest.json", "/sw.js", "/preview"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });

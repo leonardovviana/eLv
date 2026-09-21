@@ -2,22 +2,23 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Database, Download, Loader2, LogOut, PackagePlus, RefreshCw } from "lucide-react";
+import { Check, Database, Download, KeyRound, Loader2, LogOut, PackagePlus, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { plantGarden } from "@/lib/actions/cycle";
 import { createClient } from "@/lib/supabase/browser";
+import { PASSWORD_MIN } from "@/lib/username";
 import { Button } from "@/components/ui/button";
 
 export function ConfigClient({
-  email,
+  account,
   name: initialName,
   pendingIndex,
   usageToday,
   aiConfigured,
   models,
 }: {
-  email: string;
+  account: string;
   name: string;
   pendingIndex: number;
   usageToday: number;
@@ -30,6 +31,8 @@ export function ConfigClient({
   const [seeding, setSeeding] = useState(false);
   const [name, setName] = useState(initialName);
   const [savingName, setSavingName] = useState(false);
+  const [password, setPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
 
   /**
    * O nome fica no metadado da conta, não numa tabela nova: é um campo só,
@@ -48,6 +51,30 @@ export function ConfigClient({
     }
     toast.success(name.trim() ? `Combinado, ${name.trim().split(/\s+/)[0]}` : "Nome removido");
     router.refresh();
+  }
+
+  /**
+   * Sem e-mail não existe "esqueci minha senha": a troca só acontece aqui,
+   * com a sessão aberta. É por isso que ela mora na tela de config e não
+   * numa rota de recuperação que ninguém conseguiria abrir.
+   */
+  async function savePassword() {
+    if (password.length < PASSWORD_MIN) {
+      toast.error(`A senha precisa de pelo menos ${PASSWORD_MIN} caracteres.`);
+      return;
+    }
+
+    setSavingPassword(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.updateUser({ password });
+    setSavingPassword(false);
+
+    if (error) {
+      toast.error("Não consegui trocar a senha", { description: error.message });
+      return;
+    }
+    setPassword("");
+    toast.success("Senha trocada");
   }
 
   async function runSeed() {
@@ -236,7 +263,7 @@ export function ConfigClient({
 
         <section className="panel flex flex-col p-5 md:p-6">
           <p className="label">Conta</p>
-          <p className="mt-4 break-all font-mono text-xs text-foreground/80">{email}</p>
+          <p className="mt-4 break-all font-mono text-xs text-foreground/80">{account}</p>
 
           <label htmlFor="display-name" className="mt-6 block text-sm text-muted-foreground">
             Como devo te chamar
@@ -264,6 +291,35 @@ export function ConfigClient({
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             É o nome que aparece na saudação da tela Hoje.
+          </p>
+
+          <label htmlFor="new-password" className="mt-6 block text-sm text-muted-foreground">
+            Nova senha
+          </label>
+          <div className="mt-2 flex gap-2">
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && savePassword()}
+              placeholder="••••••••"
+              className="h-9"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={savePassword}
+              disabled={savingPassword || password.length < PASSWORD_MIN}
+              className="h-9 shrink-0"
+            >
+              {savingPassword ? <Loader2 className="animate-spin" /> : <KeyRound />}
+              Trocar
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Não existe recuperação por e-mail: a troca só acontece aqui, logado.
           </p>
 
           <div className="mt-auto pt-5">

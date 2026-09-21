@@ -1,4 +1,3 @@
-import { TriangleAlert } from "lucide-react";
 import { LoginForm } from "@/components/login-form";
 import { Monogram } from "@/components/app-nav";
 
@@ -19,9 +18,9 @@ const CYCLE = [
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>;
+  searchParams: Promise<{ next?: string }>;
 }) {
-  const { next, error } = await searchParams;
+  const { next } = await searchParams;
 
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
@@ -72,15 +71,8 @@ export default async function LoginPage({
           </div>
 
           <div className="mb-6 hidden lg:block">
-            <h2 className="display-sm">Entrar</h2>
+            <h2 className="display-sm">Acesso</h2>
           </div>
-
-          {error && (
-            <div className="mb-5 flex items-start gap-3 rounded-lg bg-[hsl(var(--destructive)/0.08)] p-4 shadow-[inset_0_0_0_1px_hsl(var(--destructive)/0.3)]">
-              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-              <p className="text-sm leading-relaxed text-muted-foreground">{error}</p>
-            </div>
-          )}
 
           <LoginForm next={next} />
         </div>

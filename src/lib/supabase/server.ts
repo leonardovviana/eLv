@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { usernameFromEmail } from "@/lib/username";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -39,8 +40,8 @@ export async function getUser() {
  * Como a pessoa quer ser chamada.
  *
  * Sai do metadado da conta, que é onde o Supabase guarda o que o próprio
- * usuário define (Config → "Como devo te chamar"). Sem isso, tenta o começo
- * do e-mail, e só aceita se parecer um nome de verdade: "leonardoverasviana"
+ * usuário define (Config → "Como devo te chamar"). Sem isso, tenta o nome de
+ * usuário, e só aceita se parecer um nome de verdade: "leonardoverasviana"
  * cumprimentado no painel seria pior do que não cumprimentar ninguém.
  */
 export function displayName(user: { email?: string | null; user_metadata?: Record<string, unknown> } | null) {
@@ -50,11 +51,23 @@ export function displayName(user: { email?: string | null; user_metadata?: Recor
   const given = (meta.name ?? meta.full_name ?? meta.first_name) as string | undefined;
   if (given && given.trim()) return given.trim().split(/\s+/)[0];
 
-  const local = user.email?.split("@")[0] ?? "";
-  const first = local.split(/[._-]/)[0];
+  const handle = accountName(user).split("@")[0];
+  const first = handle.split(/[._-]/)[0];
   if (first.length >= 3 && first.length <= 14 && /^[a-zà-ü]+$/i.test(first)) {
     return first.charAt(0).toUpperCase() + first.slice(1);
   }
 
   return null;
+}
+
+/**
+ * O identificador que a pessoa digita para entrar: o nome de usuário. Conta
+ * antiga, criada por magic link, ainda carrega um e-mail de verdade — aí é
+ * ele que aparece, porque é com ele que o login funciona.
+ */
+export function accountName(user: { email?: string | null; user_metadata?: Record<string, unknown> } | null) {
+  if (!user) return "";
+  const meta = user.user_metadata ?? {};
+  const saved = meta.username as string | undefined;
+  return saved?.trim() || usernameFromEmail(user.email) || user.email || "";
 }

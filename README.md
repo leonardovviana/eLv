@@ -137,28 +137,72 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | idem |
 | `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
-| `NEXT_PUBLIC_SITE_URL` | o domínio público do app — em produção, `https://elv-one.vercel.app` |
 
 A chave do Gemini **nunca** chega ao browser: só é lida nos route handlers em `/api/ai/*`.
 
 ### 3. Auth
 
-O link do e-mail é montado no browser, e a origem vem de `NEXT_PUBLIC_SITE_URL` (ver [`src/lib/site-url.ts`](src/lib/site-url.ts)) — não da aba aberta. Sem essa variável em produção, um acesso por URL de preview da Vercel geraria um link para um domínio que o Supabase não reconhece.
+**Usuário e senha, sem e-mail.** O Supabase só autentica por e-mail ou telefone, então o nome de usuário vira um endereço interno determinístico — `leo` → `leo@elv.local` (ver [`src/lib/username.ts`](src/lib/username.ts)). O `.local` é reservado por RFC: não existe caixa postal do outro lado e nenhuma mensagem sai do projeto. O endereço é só a chave que o GoTrue exige, e quem entra nunca vê isso.
 
-Em Supabase → Authentication → URL Configuration:
+O formulário posta numa Server Action ([`src/app/login/actions.ts`](src/app/login/actions.ts)) e o cookie de sessão sai na própria resposta. Não há rota de callback, link para clicar nem origem para configurar.
 
-- **Site URL**: `https://elv-one.vercel.app` — é para onde o Supabase manda o usuário quando o `redirect_to` não está na lista abaixo
-- **Redirect URLs**:
+Um ajuste é obrigatório em Supabase → Authentication → Sign In / Providers → Email:
 
+- **Confirm email: desligado.** Ligado, o cadastro fica esperando a confirmação de um endereço que não recebe e-mail, e a conta nunca entra. Com a chave ligada, a tela avisa em vez de deixar a pessoa no escuro.
+
+Depois de criar sua conta, dá para desligar **Allow new users to sign up** no mesmo painel: a aba "Criar conta" passa a recusar novos cadastros e o app vira de um dono só.
+
+Não existe recuperação de senha: sem e-mail, não há para onde mandar o link. A troca fica em **Config → Conta → Nova senha**, com a sessão aberta. Perdendo a senha, o caminho é o SQL Editor do Supabase:
+
+```sql
+update auth.users
+set encrypted_password = extensions.crypt('nova-senha', extensions.gen_salt('bf'))
+where email = 'leo@elv.local';
 ```
-https://elv-one.vercel.app/auth/callback
-https://elv-one.vercel.app/**
-http://localhost:3000/auth/callback
+
+**Conta antiga, criada por magic link?** O mesmo SQL Editor converte ela em usuário e senha sem perder nada do acervo — o `user_id` continua o mesmo, então itens, áreas e trilhas vêm junto:
+
+```sql
+do $$
+declare
+  v_old_email text := 'voce@gmail.com';  -- e-mail atual da conta
+  v_username  text := 'leo';             -- usuário novo, minúsculas
+  v_password  text := 'sua-senha';       -- pelo menos 8 caracteres
+  v_new_email text := lower(v_username) || '@elv.local';
+  v_uid       uuid;
+begin
+  select id into v_uid from auth.users where lower(email) = lower(v_old_email);
+  if v_uid is null then
+    raise exception 'Nenhuma conta com o e-mail %', v_old_email;
+  end if;
+
+  update auth.users
+  set email              = v_new_email,
+      encrypted_password = extensions.crypt(v_password, extensions.gen_salt('bf')),
+      email_confirmed_at = coalesce(email_confirmed_at, now()),
+      raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb)
+                           || jsonb_build_object('username', lower(v_username)),
+      -- O GoTrue lê estas colunas como texto e quebra no login se vierem NULL.
+      confirmation_token         = coalesce(confirmation_token, ''),
+      recovery_token             = coalesce(recovery_token, ''),
+      email_change               = coalesce(email_change, ''),
+      email_change_token_new     = coalesce(email_change_token_new, ''),
+      email_change_token_current = coalesce(email_change_token_current, ''),
+      updated_at = now()
+  where id = v_uid;
+
+  -- A identidade do provedor 'email' guarda o endereço de novo. Sem atualizar
+  -- aqui, o auth continua enxergando a conta pelo endereço antigo.
+  update auth.identities
+  set identity_data = identity_data || jsonb_build_object('email', v_new_email),
+      updated_at = now()
+  where user_id = v_uid and provider = 'email';
+end $$;
 ```
 
-Na Vercel, defina `NEXT_PUBLIC_SITE_URL=https://elv-one.vercel.app` em Production (e redeploy — é `NEXT_PUBLIC_`, então entra no bundle em build time).
+`confirmed_at` é coluna gerada: não entra no `update`. Se o Postgres reclamar que `extensions.crypt` não existe, o pgcrypto está em outro schema — troque por `crypt(...)` e `gen_salt(...)` sem prefixo.
 
-Sem isso o magic link chega, mas o clique não volta pro app. É o único passo do deploy que não dá para automatizar: configuração de Auth não passa por SQL nem pela CLI.
+Enquanto não converter, ela continua entrando: o campo **Usuário** aceita o e-mail inteiro quando o que você digita tem `@` — o que falta nessa conta é só a senha, que o primeiro `update` acima define.
 
 ### 4. Rodar
 
@@ -170,7 +214,7 @@ npm run dev
 
 ### 5. Primeiro uso
 
-1. Entre com magic link
+1. Crie a conta com usuário e senha (aba **Criar conta**)
 2. Na home, **Plantar acervo de exemplo**. Isso enche o app com sementes cruas, brotos e raízes com histórico, e a fila de revisão já nasce com itens vencidos
 3. **Config → Indexar pendentes**, para tudo entrar na busca semântica
 4. **Revisar.** É o movimento que a v1 não tinha e o que faz o resto valer a pena
@@ -241,8 +285,7 @@ src/
     api/ai/             distill, polish, extract-url, embed, ask, track
     api/search/         busca híbrida
     api/export/         backup JSON
-    auth/callback/      troca do magic link por sessão
-    login/
+    login/              usuário e senha (Server Action, sem callback)
     preview/            bancada de QA visual (fixtures, pública)
   components/
     motion.tsx          primitivas de movimento (nada re-renderiza por quadro)
