@@ -1,0 +1,24 @@
+node_modules
+.next
+out
+dist
+build
+
+.env
+.env.local
+.env*.local
+
+.DS_Store
+*.log
+.vercel
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Ícones do PWA: derivados, gerados pelo `npm run build`.
+public/icon-*.png
+public/apple-touch-icon.png
+
+# Configuração local do agente e binários de skill (17MB, nada disso é código
+# do projeto).
+.claude/
+.impeccable/

@@ -1,0 +1,59 @@
+{
+  "name": "eLv — Segundo Cérebro",
+  "short_name": "eLv",
+  "description": "Memória secundária pessoal: captura, organiza e reencontra tudo sobre IA, coding e agentic.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#08090C",
+  "theme_color": "#08090C",
+  "orientation": "portrait-primary",
+  "lang": "pt-BR",
+  "categories": [
+    "productivity",
+    "education"
+  ],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/fluxo",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "shortcuts": [
+    {
+      "name": "Captura rápida",
+      "short_name": "Capturar",
+      "url": "/fluxo",
+      "description": "Jogar um link, código ou ideia no fluxo"
+    },
+    {
+      "name": "Buscar",
+      "short_name": "Buscar",
+      "url": "/buscar",
+      "description": "Procurar no segundo cérebro"
+    }
+  ]
+}
